@@ -6,9 +6,9 @@
 #include "Filter.h"
 
 // Sets the program to run in test mode if true.
-bool test_mode = true;
+bool test_mode = false;
 // 35000 gram maximum (35kg) weight.
-float max_weight = 200; 
+float max_weight = 35000; 
 
 // Input & Output pins.
 const byte data_pin = 5; // HX711 sensor pin
