@@ -8,7 +8,7 @@
 // Sets the program to run in test mode if true.
 bool test_mode = true;
 // 35000 gram maximum (35kg) weight.
-float max_weight = 150; 
+float max_weight = 200; 
 
 // Input & Output pins.
 const byte data_pin = 5; // HX711 sensor pin
@@ -61,16 +61,20 @@ void SignalPin() {
     Serial.println();
   }
   if (units >= max_weight && !above_max_weight) {
-    above_max_weight = true;
+    noInterrupts();
     digitalWrite(signal_pin, HIGH);
+    above_max_weight = true;
+    interrupts();
     if (test_mode) {
       Serial.print("\nHIGH\n");
     }
   }
 
   if (units < max_weight && above_max_weight) {
-    above_max_weight = false;
+    noInterrupts();
     digitalWrite(signal_pin, LOW);
+    above_max_weight = false;
+    interrupts();
     if (test_mode) {
       Serial.print("\nLOW\n");
     }
