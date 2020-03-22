@@ -6,21 +6,23 @@
 #include "Filter.h"
 
 // Sets the program to run in test mode if true.
-bool test_mode = false;
+bool test_mode = true;
 // 35000 gram maximum (35kg) weight.
 float max_weight = 35000; 
+// 100 gram minimum (0.01kg) weight.
+float min_weight = 100; 
 
 // Input & Output pins.
 const byte data_pin = 5; // HX711 sensor pin
 const byte clock_pin = 4; // HX711 sensor pin
 const byte interrupt_pin = 3; // Opto sensor pin
-const byte signal_pin = 11; // Signal pin (HIGH above max_weight, otherwise LOW)
+const byte signal_max_weight_pin = 11; // Signal pin (HIGH above max_weight, otherwise LOW)
+const byte signal_min_weight_pin = 12; // Signal pin (HIGH below min_weight, otherwise LOW)
 
 // HX711 scale, load cell & filtering vars.
 float calibration_factor = 65; // this calibration factor is adjusted according to the load cell
 float units;
 float raw_units;
-bool above_max_weight = false;
 /* Moving average for load cell sensor data filtering*/
 Moving_average ma(5, 0);
 /* HX7111 load cell init with pins */
@@ -28,6 +30,10 @@ HX711 scale(data_pin, clock_pin);
 
 // Wheel counter.
 volatile int pulsecount;
+
+// State for signals on pins
+bool above_max_weight = false;
+bool below_min_weight = false;
 
 // Bluetooth Serial init.
 SoftwareSerial my_serial(6, 7); // RX, TX
@@ -54,7 +60,7 @@ void FilterPullForce() {
 }
 
 // Sends a signal to pin 11 if the measured weight is above max_weight.
-void SignalPin() {
+void SignalOnMaxWeightPin() {
   if (test_mode) {
     Serial.print("Units: ");
     Serial.print(units);
@@ -62,7 +68,7 @@ void SignalPin() {
   }
   if (units >= max_weight && !above_max_weight) {
     noInterrupts();
-    digitalWrite(signal_pin, HIGH);
+    digitalWrite(signal_max_weight_pin, HIGH);
     above_max_weight = true;
     interrupts();
     if (test_mode) {
@@ -72,8 +78,36 @@ void SignalPin() {
 
   if (units < max_weight && above_max_weight) {
     noInterrupts();
-    digitalWrite(signal_pin, LOW);
+    digitalWrite(signal_max_weight_pin, LOW);
     above_max_weight = false;
+    interrupts();
+    if (test_mode) {
+      Serial.print("\nLOW\n");
+    }
+  }
+}
+
+// Sends a signal to pin 12 if the measured weight is below min_weight.
+void SignalOnMinWeightPin() {
+  if (test_mode) {
+    Serial.print("Units: ");
+    Serial.print(units);
+    Serial.println();
+  }
+  if (units < min_weight && !below_min_weight) {
+    noInterrupts();
+    digitalWrite(signal_min_weight_pin, HIGH);
+    below_min_weight = true;
+    interrupts();
+    if (test_mode) {
+      Serial.print("\nHIGH\n");
+    }
+  }
+
+  if (units >= min_weight && below_min_weight) {
+    noInterrupts();
+    digitalWrite(signal_min_weight_pin, LOW);
+    below_min_weight = false;
     interrupts();
     if (test_mode) {
       Serial.print("\nLOW\n");
@@ -133,8 +167,10 @@ void setup() {
   Serial.println();
 
   // Pin configuration & defaults.
-  pinMode(signal_pin, OUTPUT);
-  digitalWrite(signal_pin, LOW);
+  pinMode(signal_max_weight_pin, OUTPUT);
+  digitalWrite(signal_max_weight_pin, LOW);
+  pinMode(signal_min_weight_pin, OUTPUT);
+  digitalWrite(signal_min_weight_pin, LOW);
   pinMode(interrupt_pin, INPUT_PULLUP);
   // Setup interrupt for wheel turns.
   attachInterrupt(digitalPinToInterrupt(interrupt_pin), HandleWheelTurn, FALLING);
@@ -146,7 +182,8 @@ void loop() {
   delay(50);
   ReadRubberPull();
   FilterPullForce();
-  SignalPin();
+  SignalOnMaxWeightPin();
+  SignalOnMinWeightPin();
   if (test_mode) {
     HandleWheelTurn();
   }
